@@ -15,7 +15,7 @@
 
 	// The optional 'workspaceFolder' property is the path VS Code should open by default when
 	// connected. This is typically a file mount in .devcontainer/docker-compose.yml
-	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"
+	"workspaceFolder": "/app",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
@@ -33,7 +33,26 @@
 	// "postCreateCommand": "cat /etc/os-release",
 
 	// Configure tool-specific properties.
-	// "customizations": {},
+	"customizations": {
+		"vscode": {
+			// Uncomment the next line to set a specific VS Code version.
+			// "vscodeVersion": "1.60.0",
+
+			// Uncomment the next line to install specific extensions.
+			"extensions": [ // コンテナ内でインストールするVS Codeの拡張機能ID
+				"ms-python.python",
+				"ms-python.vscode-pylance"
+			]
+
+			// Uncomment the next line to set a specific VS Code settings.json file.
+			// "settings": {
+			// 	"editor.fontSize": 14
+			// }
+		},
+	
+		// .envファイルをコンテナ内で利用可能にする
+		"runArgs": ["--env-file", "/app/.env"]
+	}
 
 	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "devcontainer"
