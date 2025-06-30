@@ -5,6 +5,9 @@ from openai.types.chat import ChatCompletionMessageParam
 from ..config.settings import OPENAI_API_KEY
 from ..config.prompts import SYSTEM_PROMPT
 
+# メンションを削除するための正規表現をコンパイル
+MENTION_PATTERN = re.compile(r'<@!?\d+>')
+
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 async def get_openai_response(history_messages: list, bot_user: discord.ClientUser):
@@ -15,7 +18,7 @@ async def get_openai_response(history_messages: list, bot_user: discord.ClientUs
     """
     messages_for_api: list[ChatCompletionMessageParam] = [{"role": "system", "content": SYSTEM_PROMPT}]
     for msg in history_messages:
-        clean_content = re.sub(r'<@!?\d+>', '', msg.content).strip()
+        clean_content = MENTION_PATTERN.sub('', msg.content).strip()
         if not clean_content:
             continue
 

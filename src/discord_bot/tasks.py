@@ -23,8 +23,8 @@ async def send_random_message_loop(bot: discord.Bot):
                 await channel.send(message_content)
                 await save_message_to_db(str(bot.user), message_content)
             else:
-                print(f"エラー: チャンネル {channel.name if hasattr(channel, 'name') else channel} はメッセージ送信に対応していません。")
+                print(f"エラー: チャンネル (ID: {channel.id}, タイプ: {type(channel).__name__}) はメッセージ送信に対応していません。")
         except discord.Forbidden:
-            print(f"エラー: チャンネル {channel.name if hasattr(channel, 'name') else channel} へのメッセージ送信権限がありません。")
+            print(f"エラー: チャンネル (ID: {channel.id}, タイプ: {type(channel).__name__}) へのメッセージ送信権限がありません。")
         except Exception as e:
             print(f"ランダムメッセージ送信中にエラーが発生しました: {e}")
