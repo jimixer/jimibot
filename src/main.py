@@ -2,12 +2,12 @@ import os
 import random
 import re
 import asyncio
-import sqlite3
+import aiosqlite
 from datetime import datetime
 
 import discord
-import openai
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 # --- 初期設定 ---
 
@@ -17,7 +17,7 @@ load_dotenv()
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 try:
-    TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID"))
+    TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID") or "")
 except (ValueError, TypeError):
     print("エラー: TARGET_CHANNEL_IDが.envファイルに正しく設定されていません。")
     exit()
@@ -27,8 +27,8 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 # BotクライアントとOpenAIクライアントを初期化
-bot = discord.Bot(intents=intents)
-openai.api_key = OPENAI_API_KEY
+bot = discord.Bot(intents=intents) 
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 DB_PATH = "data/bot_database.db"
 
@@ -43,38 +43,36 @@ RANDOM_MESSAGES = [
 
 # --- データベース関連 ---
 
-def init_database():
+async def init_database():
     """データベースとテーブルを初期化する"""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            author TEXT NOT NULL,
-            content TEXT NOT NULL
-        )
-    """)
-    conn.commit()
-    conn.close()
-    print("データベースが正常に初期化されました。")
+    try:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    author TEXT NOT NULL,
+                    content TEXT NOT NULL
+                )
+            """)
+            await db.commit()
+        print("データベースが正常に初期化されました。")
+    except aiosqlite.Error as e:
+        print(f"データベース初期化エラー: {e}")
 
-def save_message_to_db(author: str, content: str):
+async def save_message_to_db(author: str, content: str):
     """メッセージをデータベースに保存する"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     try:
-        cursor.execute(
-            "INSERT INTO messages (timestamp, author, content) VALUES (?, ?, ?)",
-            (timestamp, author, content)
-        )
-        conn.commit()
-    except sqlite3.Error as e:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "INSERT INTO messages (timestamp, author, content) VALUES (?, ?, ?)",
+                (timestamp, author, content)
+            )
+            await db.commit()
+    except aiosqlite.Error as e:
         print(f"データベースエラー: {e}")
-    finally:
-        conn.close()
 
 # --- Discord Bot イベント ---
 
@@ -82,7 +80,7 @@ def save_message_to_db(author: str, content: str):
 async def on_ready():
     """Botが起動したときに実行される"""
     print(f"Bot is ready. Logged in as {bot.user}")
-    init_database()
+    await init_database()
     bot.loop.create_task(send_random_message_loop())
 
 async def send_random_message_loop():
@@ -101,7 +99,7 @@ async def send_random_message_loop():
         message_content = random.choice(RANDOM_MESSAGES)
         try:
             await channel.send(message_content)
-            save_message_to_db(str(bot.user), message_content)
+            await save_message_to_db(str(bot.user), message_content)
         except discord.Forbidden:
             print(f"エラー: チャンネル {channel.name} へのメッセージ送信権限がありません。")
         except Exception as e:
@@ -120,7 +118,7 @@ async def on_message(message: discord.Message):
 
     if is_dm or is_mentioned:
         # ユーザーのメッセージをDBに保存
-        save_message_to_db(str(message.author), message.content)
+        await save_message_to_db(str(message.author), message.content)
 
         # 応答生成中であることをユーザーに伝える (async with を使用)
         async with message.channel.typing():
@@ -138,12 +136,16 @@ async def on_message(message: discord.Message):
                         messages_for_api.append({"role": role, "content": clean_content})
 
                 # OpenAI APIにリクエストを送信
-                response = await asyncio.to_thread(openai.chat.completions.create, model="gpt-4o-mini", messages=messages_for_api)
-                reply_content = response.choices[0].message.content.strip()
-
+                response = await openai_client.chat.completions.create(model="gpt-4o-mini", messages=messages_for_api)
+                
+                # 応答が正常に得られたかを確認し、内容を安全に取得する
+                reply_content = ""
+                if response.choices and response.choices[0].message.content:
+                    reply_content = response.choices[0].message.content.strip()
+                
                 # 応答を送信し、DBに保存
                 await message.reply(reply_content)
-                save_message_to_db(str(bot.user), reply_content)
+                await save_message_to_db(str(bot.user), reply_content)
 
             except Exception as e:
                 print(f"OpenAI API呼び出し中にエラーが発生しました: {e}")
