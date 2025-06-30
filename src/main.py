@@ -135,7 +135,7 @@ async def on_message(message: discord.Message):
 
     # DMでの会話、またはチャンネルでのメンションに応答
     is_dm = isinstance(message.channel, discord.DMChannel)
-    is_mentioned = bot.user.mentioned_in(message)
+    is_mentioned = bot.user and bot.user.mentioned_in(message)
 
     if is_dm or is_mentioned:
         # ユーザーのメッセージをDBに保存
