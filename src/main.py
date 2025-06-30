@@ -41,6 +41,26 @@ RANDOM_MESSAGES = [
     "お腹すいたな…",
 ]
 
+# --- プロンプト関連 ---
+PROMPT_PATH = "config/persona.md"
+SYSTEM_PROMPT = ""
+
+def load_system_prompt():
+    """システムプロンプトをファイルから読み込む"""
+    global SYSTEM_PROMPT
+    try:
+        # srcディレクトリから見た相対パスでconfig/persona.mdを指定
+        config_path = os.path.join(os.path.dirname(__file__), '..', PROMPT_PATH)
+        with open(config_path, "r", encoding="utf-8") as f:
+            SYSTEM_PROMPT = f.read()
+        print(f"システムプロンプトを '{config_path}' から読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: プロンプトファイル '{PROMPT_PATH}' が見つかりません。デフォルトのプロンプトを使用します。")
+        SYSTEM_PROMPT = "あなたは親切で少しユーモアのあるアシスタントです。"
+    except Exception as e:
+        print(f"プロンプトファイルの読み込み中にエラーが発生しました: {e}。デフォルトのプロンプトを使用します。")
+        SYSTEM_PROMPT = "あなたは親切で少しユーモアのあるアシスタントです。"
+
 # --- データベース関連 ---
 
 async def init_database():
@@ -80,6 +100,7 @@ async def save_message_to_db(author: str, content: str):
 async def on_ready():
     """Botが起動したときに実行される"""
     print(f"Bot is ready. Logged in as {bot.user}")
+    load_system_prompt()
     await init_database()
     bot.loop.create_task(send_random_message_loop())
 
@@ -127,7 +148,7 @@ async def on_message(message: discord.Message):
                 history = [msg async for msg in message.channel.history(limit=5)]
                 history.reverse() # 時系列順にする
 
-                messages_for_api = [{"role": "system", "content": "あなたは親切で少しユーモアのあるアシスタントです。"}]
+                messages_for_api = [{"role": "system", "content": SYSTEM_PROMPT}]
                 for msg in history:
                     role = "assistant" if msg.author == bot.user else "user"
                     # メンション部分を会話履歴から取り除く

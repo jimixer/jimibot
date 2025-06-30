@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # src ディレクトリをコンテナにコピー
 COPY src/ ./src/
+COPY config/ ./config/
 
 # コンテナ起動時のコマンド
 CMD ["python", "-u", "src/main.py"]
